@@ -88,14 +88,12 @@ def enviar_correo(destinatario, asunto, cuerpo):
     access_token = st.secrets["nylas"]["access_token"]
     remitente = st.secrets["email"]["remitente"]  # Direccion de correo electronico del remitente
 
-    # Inicializa el cliente de Nylas
-    nylas_client = Client(
-        # client_id=client_id,  # Estos argumentos pueden no ser necesarios dependiendo de la version
-        # client_secret=client_secret,  # Estos argumentos pueden no ser necesarios dependiendo de la version
-        access_token=access_token,
-    )
-
     try:
+        # Inicializa el cliente de Nylas
+        nylas_client = Client(
+            access_token=access_token,
+        )
+
         # Crear el borrador del mensaje
         create_request = CreateDraftRequest(
             to=[{"email": destinatario}],
@@ -104,9 +102,6 @@ def enviar_correo(destinatario, asunto, cuerpo):
         )
 
         # Enviar el mensaje utilizando la API de Nylas
-        # send_message_request = SendMessageRequest(  #Eliminado ya que no se usa esta clase
-        #    draft=create_request
-        # )
 
         nylas_client.drafts.create(create_request).send()  # Envia directamente el borrador
 
