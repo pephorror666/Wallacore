@@ -9,6 +9,9 @@ from datetime import datetime
 import os
 import smtplib
 from email.mime.text import MIMEText
+from nylas import Client
+from nylas.models.messages import SendMessageRequest
+from nylas.models.drafts import CreateDraftRequest
 
 def verificar_credenciales(usuario, password):
     if usuario in st.secrets:
@@ -73,25 +76,39 @@ def eliminar_producto(index):
     df.to_csv('catalogo.csv', index=False, encoding='utf-8')
 
 def enviar_correo(destinatario, asunto, cuerpo):
-    remitente = st.secrets["email"]["remitente"]
-    password = st.secrets["email"]["password"]
+    # Credenciales de Nylas
+    client_id = st.secrets["nylas"]["client_id"]
+    client_secret = st.secrets["nylas"]["client_secret"]
+    access_token = st.secrets["nylas"]["access_token"]
+    remitente = st.secrets["email"]["remitente"] #Direccion de correo electronico del remitente
+
+    # Inicializa el cliente de Nylas
+    nylas_client = Client(
+        client_id=client_id,
+        client_secret=client_secret,
+        access_token=access_token,
+    )
 
     try:
-        # Crear el mensaje
-        mensaje = MIMEText(cuerpo, 'plain')
-        mensaje['From'] = remitente
-        mensaje['To'] = destinatario
-        mensaje['Subject'] = asunto
+        # Crear el borrador del mensaje
+        create_request = CreateDraftRequest(
+            to=[{"email": destinatario}],
+            subject=asunto,
+            body=cuerpo,
+        )
+        
+        # Enviar el mensaje utilizando la API de Nylas
+        send_message_request = SendMessageRequest(
+            draft=create_request
+        )
+        
+        nylas_client.messages.send(send_message_request)
+        
 
-        # Iniciar la conexión con el servidor SMTP de Outlook
-        with smtplib.SMTP('smtp.office365.com', 587) as server:
-            server.starttls()  # Encriptación TLS
-            server.login(remitente, password)
-            server.sendmail(remitente, destinatario, mensaje.as_string())
+        st.success(f"Correo electrónico enviado a {destinatario} a través de Nylas")
 
-        st.success(f"Correo electrónico enviado a {destinatario}")
     except Exception as e:
-        st.error(f"Error al enviar el correo electrónico: {e}")
+        st.error(f"Error al enviar el correo electrónico con Nylas: {e}")
 
 # Función para enviar un mensaje
 def enviar_mensaje(remitente, destinatario, producto, mensaje):
