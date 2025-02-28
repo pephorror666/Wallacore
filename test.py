@@ -72,6 +72,27 @@ def eliminar_producto(index):
     df = df.drop(index)
     df.to_csv('catalogo.csv', index=False, encoding='utf-8')
 
+def enviar_correo(destinatario, asunto, cuerpo):
+    remitente = st.secrets["email"]["remitente"]
+    password = st.secrets["email"]["password"]
+
+    try:
+        # Crear el mensaje
+        mensaje = MIMEText(cuerpo, 'plain')
+        mensaje['From'] = remitente
+        mensaje['To'] = destinatario
+        mensaje['Subject'] = asunto
+
+        # Iniciar la conexión con el servidor SMTP de Outlook
+        with smtplib.SMTP('smtp.office365.com', 587) as server:
+            server.starttls()  # Encriptación TLS
+            server.login(remitente, password)
+            server.sendmail(remitente, destinatario, mensaje.as_string())
+
+        st.success(f"Correo electrónico enviado a {destinatario}")
+    except Exception as e:
+        st.error(f"Error al enviar el correo electrónico: {e}")
+
 # Función para enviar un mensaje
 def enviar_mensaje(remitente, destinatario, producto, mensaje):
     if not os.path.exists('mensajes.csv'):
@@ -82,7 +103,7 @@ def enviar_mensaje(remitente, destinatario, producto, mensaje):
     with open('mensajes.csv', 'a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M"), remitente, destinatario, producto, mensaje])
-    
+
     # Enviar correo electrónico
     asunto = f"Nuevo mensaje sobre {producto} en Wallacore"
     cuerpo = f"Hola,\n\nHas recibido un nuevo mensaje de {remitente} sobre el producto {producto}:\n\n{mensaje}\n\nInicia sesión en Wallacore para responder."
@@ -112,27 +133,6 @@ def eliminar_mensaje(index):
 def contar_mensajes_no_leidos(usuario):
     mensajes = cargar_mensajes(usuario)
     return len([m for m in mensajes if m[2] == usuario])
-
-def enviar_correo(destinatario, asunto, cuerpo):
-    remitente = st.secrets["email"]["remitente"]
-    password = st.secrets["email"]["password"]
-
-    try:
-        # Crear el mensaje
-        mensaje = MIMEText(cuerpo, 'plain')
-        mensaje['From'] = remitente
-        mensaje['To'] = destinatario
-        mensaje['Subject'] = asunto
-
-        # Iniciar la conexión con el servidor SMTP de Outlook
-        with smtplib.SMTP('smtp.office365.com', 587) as server:
-            server.starttls()  # Encriptación TLS
-            server.login(remitente, password)
-            server.sendmail(remitente, destinatario, mensaje.as_string())
-
-        st.success(f"Correo electrónico enviado a {destinatario}")
-    except Exception as e:
-        st.error(f"Error al enviar el correo electrónico: {e}")
 
 # Configuración de la página
 st.set_page_config(page_title="Wallacore", layout="wide")
@@ -171,7 +171,7 @@ else:
         "Lista de productos", 
         "Mis productos", 
         "Poner producto a la venta", 
-        f"Mis mensajes ({mensajes_no_leidos} nuevos)" if mensajes_no_leidos > 0 else "Mis mensajes"
+        f"Mis mensajes ({mensajes_no_leidos} nuevos)}" if mensajes_no_leidos > 0 else "Mis mensajes"
     ])
 
     if menu == "Lista de productos":
