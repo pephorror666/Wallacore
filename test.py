@@ -7,10 +7,9 @@ from io import BytesIO
 import pyperclip
 from datetime import datetime
 import os
-import json
-import base64
+import smtplib
+from email.mime.text import MIMEText
 
-# Función para verificar las credenciales del usuario
 def verificar_credenciales(usuario, password):
     if usuario in st.secrets:
         if st.secrets[usuario]["password"] == password:
@@ -19,22 +18,16 @@ def verificar_credenciales(usuario, password):
 
 # Función para cargar el catálogo de productos
 def cargar_catalogo():
-    try:
-        return pd.read_csv('catalogo.csv', encoding='utf-8')
-    except FileNotFoundError:
-        # Si el archivo no existe, crea un DataFrame vacío con las columnas necesarias
-        return pd.DataFrame(columns=['Vendedor', 'Correo Vendedor', 'Producto', 'Descripción', 'Foto', 'Precio'])
+    return pd.read_csv('catalogo.csv', encoding='utf-8')
 
 # Función para redimensionar la imagen
 def redimensionar_imagen(url):
     try:
-        response = requests.get(url, stream=True)  # Usar stream=True para evitar cargar toda la imagen en memoria
-        response.raise_for_status()  # Lanza una excepción para errores HTTP
+        response = requests.get(url)
         img = Image.open(BytesIO(response.content))
         img.thumbnail((100, 100))
         return img
-    except Exception as e:
-        print(f"Error al redimensionar la imagen: {e}")  # Imprime el error para depuración
+    except:
         return None
 
 # Función para mostrar la lista de productos
@@ -59,18 +52,19 @@ def mostrar_productos(df, titulo, es_mis_productos=False):
                     st.session_state.producto_seleccionado = row['Producto']
                     st.session_state.vendedor_seleccionado = row['Vendedor']
                     st.session_state.correo_vendedor = row['Correo Vendedor']
+                    #st.experimental_rerun()
                     st.rerun()
             else:
                 if st.button(f"Eliminar producto {index}"):
                     eliminar_producto(index)
+                    #st.experimental_rerun()
                     st.rerun()
 
 # Función para añadir un nuevo producto
-def añadir_producto(vendedor, correo, producto, descripcion, foto_url, precio):
-    df = cargar_catalogo()
-    nueva_fila = pd.DataFrame([[vendedor, correo, producto, descripcion, foto_url, precio]], columns=df.columns)
-    df = pd.concat([df, nueva_fila], ignore_index=True)
-    df.to_csv('catalogo.csv', index=False, encoding='utf-8')
+def añadir_producto(vendedor, correo, producto, descripcion, foto, precio):
+    with open('catalogo.csv', 'a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow([vendedor, correo, producto, descripcion, foto, precio])
 
 # Función para eliminar un producto
 def eliminar_producto(index):
@@ -88,6 +82,11 @@ def enviar_mensaje(remitente, destinatario, producto, mensaje):
     with open('mensajes.csv', 'a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M"), remitente, destinatario, producto, mensaje])
+    
+    # Enviar correo electrónico
+    asunto = f"Nuevo mensaje sobre {producto} en Wallacore"
+    cuerpo = f"Hola,\n\nHas recibido un nuevo mensaje de {remitente} sobre el producto {producto}:\n\n{mensaje}\n\nInicia sesión en Wallacore para responder."
+    enviar_correo(destinatario, asunto, cuerpo)
 
 # Función para cargar los mensajes de un usuario
 def cargar_mensajes(usuario):
@@ -114,25 +113,26 @@ def contar_mensajes_no_leidos(usuario):
     mensajes = cargar_mensajes(usuario)
     return len([m for m in mensajes if m[2] == usuario])
 
-# Función para subir la imagen a Imgur
-def upload_to_imgur(image_file, client_id):
+def enviar_correo(destinatario, asunto, cuerpo):
+    remitente = st.secrets["email"]["remitente"]
+    password = st.secrets["email"]["password"]
+
     try:
-        img_str = base64.b64encode(image_file.read()).decode()
-        headers = {'Authorization': f'Client-ID {client_id}'}
-        data = {'image': img_str}
-        response = requests.post('https://api.imgur.com/3/image', headers=headers, data=data)
-        response.raise_for_status()  # Lanza una excepción para códigos de error HTTP
-        result = response.json()
-        return result['data']['link']
-    except requests.exceptions.RequestException as e:
-        st.error(f"Error al subir la imagen a Imgur: {e}")
-        return None
-    except KeyError:
-        st.error("Error al procesar la respuesta de Imgur.")
-        return None
+        # Crear el mensaje
+        mensaje = MIMEText(cuerpo, 'plain')
+        mensaje['From'] = remitente
+        mensaje['To'] = destinatario
+        mensaje['Subject'] = asunto
+
+        # Iniciar la conexión con el servidor SMTP de Outlook
+        with smtplib.SMTP('smtp.office365.com', 587) as server:
+            server.starttls()  # Encriptación TLS
+            server.login(remitente, password)
+            server.sendmail(remitente, destinatario, mensaje.as_string())
+
+        st.success(f"Correo electrónico enviado a {destinatario}")
     except Exception as e:
-        st.error(f"Error inesperado: {e}")
-        return None
+        st.error(f"Error al enviar el correo electrónico: {e}")
 
 # Configuración de la página
 st.set_page_config(page_title="Wallacore", layout="wide")
@@ -158,6 +158,7 @@ if not st.session_state.logged_in:
             st.session_state.usuario = usuario
             st.session_state.correo = correo
             st.success("Inicio de sesión exitoso")
+            #st.experimental_rerun()
             st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
@@ -179,10 +180,11 @@ else:
             mensaje = st.text_area("Escribe tu mensaje")
             if st.button("Enviar mensaje"):
                 enviar_mensaje(st.session_state.correo, st.session_state.correo_vendedor, st.session_state.producto_seleccionado, mensaje)
-                st.success("Respuesta enviada con éxito")
+                st.success("Mensaje enviado con éxito")
                 st.session_state.producto_seleccionado = None
                 st.session_state.vendedor_seleccionado = None
                 st.session_state.correo_vendedor = None
+                #st.experimental_rerun()
                 st.rerun()
         else:
             df = cargar_catalogo()
@@ -197,29 +199,11 @@ else:
         st.header("Poner producto a la venta")
         producto = st.text_input("Nombre del producto")
         descripcion = st.text_area("Descripción")
-        
-        # Widget para subir la imagen
-        imagen = st.file_uploader("Subir foto del producto", type=["png", "jpg", "jpeg"])
-
-        # Subir a Imgur si se ha subido una imagen
-        foto = None  # Inicializar foto
-        if imagen is not None:
-            client_id = st.secrets["imgur_client_id"]["client_id"]
-            foto = upload_to_imgur(imagen, client_id)
-            if foto:
-                st.success("Imagen subida a Imgur con éxito!")
-            else:
-                st.error("Error al subir la imagen a Imgur.")
-                foto = ""  # Asignar una cadena vacía en caso de error
-        else:
-            foto = st.text_input("Si no subes imagen, introduce aquí la URL")
-
+        foto = st.text_input("URL de la foto")
         precio = st.number_input("Precio (€)", min_value=0.0, step=0.01)
-
         if st.button("Publicar producto"):
             añadir_producto(st.session_state.usuario, st.session_state.correo, producto, descripcion, foto, precio)
             st.success("Producto añadido con éxito")
-            st.rerun()
 
     elif menu.startswith("Mis mensajes"):
         st.header("Mis mensajes")
@@ -243,23 +227,26 @@ else:
                         col1, col2 = st.columns(2)
                         if col1.button(f"Eliminar mensaje {index}"):
                             eliminar_mensaje(index)
+                            #st.experimental_rerun()
                             st.rerun()
                         if col2.button(f"Responder mensaje {index}"):
                             st.session_state.respondiendo_mensaje = index
                             st.session_state.destinatario_respuesta = mensaje[1]
                             st.session_state.producto_respuesta = mensaje[3]
+                            #st.experimental_rerun()
                             st.rerun()
 
-        if hasattr(st.session_state, 'respondiendo_mensaje'):
-            st.subheader(f"Responder al mensaje sobre: {st.session_state.producto_respuesta}")
-            respuesta = st.text_area("Escribe tu respuesta")
-            if st.button("Enviar respuesta"):
-                enviar_mensaje(st.session_state.correo, st.session_state.destinatario_respuesta, st.session_state.producto_respuesta, respuesta)
-                st.success("Respuesta enviada con éxito")
-                del st.session_state.respondiendo_mensaje
-                del st.session_state.destinatario_respuesta
-                del st.session_state.producto_respuesta
-                st.rerun()
+            if hasattr(st.session_state, 'respondiendo_mensaje'):
+                st.subheader(f"Responder al mensaje sobre: {st.session_state.producto_respuesta}")
+                respuesta = st.text_area("Escribe tu respuesta")
+                if st.button("Enviar respuesta"):
+                    enviar_mensaje(st.session_state.correo, st.session_state.destinatario_respuesta, st.session_state.producto_respuesta, respuesta)
+                    st.success("Respuesta enviada con éxito")
+                    del st.session_state.respondiendo_mensaje
+                    del st.session_state.destinatario_respuesta
+                    del st.session_state.producto_respuesta
+                    #st.experimental_rerun()
+                    st.rerun()
 
     if st.sidebar.button("Cerrar sesión"):
         st.session_state.logged_in = False
@@ -268,4 +255,5 @@ else:
         st.session_state.producto_seleccionado = None
         st.session_state.vendedor_seleccionado = None
         st.session_state.correo_vendedor = None
+        #st.experimental_rerun()
         st.rerun()
