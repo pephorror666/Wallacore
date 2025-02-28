@@ -171,7 +171,7 @@ else:
         "Lista de productos", 
         "Mis productos", 
         "Poner producto a la venta", 
-        f"Mis mensajes ({mensajes_no_leidos} nuevos)}" if mensajes_no_leidos > 0 else "Mis mensajes"
+        f"Mis mensajes ({mensajes_no_leidos} nuevos)" if mensajes_no_leidos > 0 else "Mis mensajes"
     ])
 
     if menu == "Lista de productos":
