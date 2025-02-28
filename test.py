@@ -8,23 +8,14 @@ import pyperclip
 from datetime import datetime
 import os
 import json
-
-from dotenv import load_dotenv
-load_dotenv()
-
-# Obtener la cadena JSON de la variable de entorno
-usuarios_json = os.getenv("USUARIOS")
-
-# Convertir la cadena JSON a un diccionario de Python
-if usuarios_json:
-    usuarios = json.loads(usuarios_json)
-else:
-    usuarios = {}  # O manejar el error apropiadamente
+import boto3
+import uuid
 
 # Función para verificar las credenciales del usuario
 def verificar_credenciales(usuario, password):
-    if usuario in usuarios and usuarios[usuario]["password"] == password:
-        return True, usuarios[usuario]["correo"]
+    if usuario in st.secrets:
+        if st.secrets[usuario]["password"] == password:
+            return True, st.secrets[usuario]["correo"]
     return False, None
 
 # Función para cargar el catálogo de productos
@@ -63,17 +54,17 @@ def mostrar_productos(df, titulo, es_mis_productos=False):
                     st.session_state.producto_seleccionado = row['Producto']
                     st.session_state.vendedor_seleccionado = row['Vendedor']
                     st.session_state.correo_vendedor = row['Correo Vendedor']
-                    st.experimental_rerun()
+                    st.rerun()
             else:
                 if st.button(f"Eliminar producto {index}"):
                     eliminar_producto(index)
-                    st.experimental_rerun()
+                    st.rerun()
 
 # Función para añadir un nuevo producto
-def añadir_producto(vendedor, correo, producto, descripcion, foto, precio):
+def añadir_producto(vendedor, correo, producto, descripcion, foto_url, precio):
     with open('catalogo.csv', 'a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
-        writer.writerow([vendedor, correo, producto, descripcion, foto, precio])
+        writer.writerow([vendedor, correo, producto, descripcion, foto_url, precio])
 
 # Función para eliminar un producto
 def eliminar_producto(index):
@@ -117,6 +108,17 @@ def contar_mensajes_no_leidos(usuario):
     mensajes = cargar_mensajes(usuario)
     return len([m for m in mensajes if m[2] == usuario])
 
+# Función para subir la imagen a S3
+def upload_to_s3(image_file, bucket_name, aws_access_key_id, aws_secret_access_key):
+    s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+    try:
+        filename = f"images/{uuid.uuid4().hex}.jpg"
+        s3.upload_fileobj(image_file, bucket_name, filename, ExtraArgs={'ContentType': image_file.type})
+        return f"https://{bucket_name}.s3.amazonaws.com/{filename}"
+    except Exception as e:
+        st.error(f"Error al subir la imagen a S3: {e}")
+        return None
+
 # Configuración de la página
 st.set_page_config(page_title="Wallacore", layout="wide")
 
@@ -141,7 +143,7 @@ if not st.session_state.logged_in:
             st.session_state.usuario = usuario
             st.session_state.correo = correo
             st.success("Inicio de sesión exitoso")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
 
@@ -166,7 +168,7 @@ else:
                 st.session_state.producto_seleccionado = None
                 st.session_state.vendedor_seleccionado = None
                 st.session_state.correo_vendedor = None
-                st.experimental_rerun()
+                st.rerun()
         else:
             df = cargar_catalogo()
             mostrar_productos(df, "Productos disponibles")
@@ -180,11 +182,27 @@ else:
         st.header("Poner producto a la venta")
         producto = st.text_input("Nombre del producto")
         descripcion = st.text_area("Descripción")
-        foto = st.text_input("URL de la foto")
+        foto = st.file_uploader("Subir foto del producto", type=["png", "jpg", "jpeg"])
         precio = st.number_input("Precio (€)", min_value=0.0, step=0.01)
+
         if st.button("Publicar producto"):
-            añadir_producto(st.session_state.usuario, st.session_state.correo, producto, descripcion, foto, precio)
-            st.success("Producto añadido con éxito")
+            if foto is not None:
+                # Configura tus credenciales de AWS desde los secrets de Streamlit
+                AWS_ACCESS_KEY_ID = st.secrets["aws_access_key_id"]
+                AWS_SECRET_ACCESS_KEY = st.secrets["aws_secret_access_key"]
+                S3_BUCKET_NAME = st.secrets["s3_bucket_name"]
+
+                # Subir la imagen a S3
+                foto_url = upload_to_s3(foto, S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+
+                if foto_url:
+                    añadir_producto(st.session_state.usuario, st.session_state.correo, producto, descripcion, foto_url, precio)
+                    st.success("Producto añadido con éxito")
+                    st.rerun()
+                else:
+                    st.error("Hubo un error al subir la imagen. Inténtalo de nuevo.")
+            else:
+                st.error("Por favor, sube una foto del producto.")
 
     elif menu.startswith("Mis mensajes"):
         st.header("Mis mensajes")
@@ -208,12 +226,12 @@ else:
                         col1, col2 = st.columns(2)
                         if col1.button(f"Eliminar mensaje {index}"):
                             eliminar_mensaje(index)
-                            st.experimental_rerun()
+                            st.rerun()
                         if col2.button(f"Responder mensaje {index}"):
                             st.session_state.respondiendo_mensaje = index
                             st.session_state.destinatario_respuesta = mensaje[1]
                             st.session_state.producto_respuesta = mensaje[3]
-                            st.experimental_rerun()
+                            st.rerun()
 
         if hasattr(st.session_state, 'respondiendo_mensaje'):
             st.subheader(f"Responder al mensaje sobre: {st.session_state.producto_respuesta}")
@@ -224,7 +242,7 @@ else:
                 del st.session_state.respondiendo_mensaje
                 del st.session_state.destinatario_respuesta
                 del st.session_state.producto_respuesta
-                st.experimental_rerun()
+                st.rerun()
 
     if st.sidebar.button("Cerrar sesión"):
         st.session_state.logged_in = False
@@ -233,4 +251,4 @@ else:
         st.session_state.producto_seleccionado = None
         st.session_state.vendedor_seleccionado = None
         st.session_state.correo_vendedor = None
-        st.experimental_rerun()
+        st.rerun()
