@@ -4,3 +4,4 @@ pillow
 requests
 pyperclip
 python-dotenv
+nylas
