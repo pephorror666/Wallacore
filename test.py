@@ -7,6 +7,7 @@ from io import BytesIO
 import pyperclip
 from datetime import datetime
 import os
+import json
 import base64
 
 # Función para verificar las credenciales del usuario
@@ -21,16 +22,19 @@ def cargar_catalogo():
     try:
         return pd.read_csv('catalogo.csv', encoding='utf-8')
     except FileNotFoundError:
+        # Si el archivo no existe, crea un DataFrame vacío con las columnas necesarias
         return pd.DataFrame(columns=['Vendedor', 'Correo Vendedor', 'Producto', 'Descripción', 'Foto', 'Precio'])
 
 # Función para redimensionar la imagen
 def redimensionar_imagen(url):
     try:
-        response = requests.get(url)
+        response = requests.get(url, stream=True)  # Usar stream=True para evitar cargar toda la imagen en memoria
+        response.raise_for_status()  # Lanza una excepción para errores HTTP
         img = Image.open(BytesIO(response.content))
         img.thumbnail((100, 100))
         return img
-    except:
+    except Exception as e:
+        print(f"Error al redimensionar la imagen: {e}")  # Imprime el error para depuración
         return None
 
 # Función para mostrar la lista de productos
@@ -63,9 +67,10 @@ def mostrar_productos(df, titulo, es_mis_productos=False):
 
 # Función para añadir un nuevo producto
 def añadir_producto(vendedor, correo, producto, descripcion, foto_url, precio):
-    with open('catalogo.csv', 'a', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        writer.writerow([vendedor, correo, producto, descripcion, foto_url, precio])
+    df = cargar_catalogo()
+    nueva_fila = pd.DataFrame([[vendedor, correo, producto, descripcion, foto_url, precio]], columns=df.columns)
+    df = pd.concat([df, nueva_fila], ignore_index=True)
+    df.to_csv('catalogo.csv', index=False, encoding='utf-8')
 
 # Función para eliminar un producto
 def eliminar_producto(index):
