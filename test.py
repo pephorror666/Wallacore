@@ -8,8 +8,7 @@ import pyperclip
 from datetime import datetime
 import os
 import json
-import boto3
-import uuid
+import base64
 
 # Función para verificar las credenciales del usuario
 def verificar_credenciales(usuario, password):
@@ -108,15 +107,20 @@ def contar_mensajes_no_leidos(usuario):
     mensajes = cargar_mensajes(usuario)
     return len([m for m in mensajes if m[2] == usuario])
 
-# Función para subir la imagen a S3
-def upload_to_s3(image_file, bucket_name, aws_access_key_id, aws_secret_access_key):
-    s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+# Función para subir la imagen a Imgur
+def upload_to_imgur(image_file, client_id):
     try:
-        filename = f"images/{uuid.uuid4().hex}.jpg"
-        s3.upload_fileobj(image_file, bucket_name, filename, ExtraArgs={'ContentType': image_file.type})
-        return f"https://{bucket_name}.s3.amazonaws.com/{filename}"
-    except Exception as e:
-        st.error(f"Error al subir la imagen a S3: {e}")
+        img_str = base64.b64encode(image_file.read()).decode()
+        headers = {'Authorization': f'Client-ID {client_id}'}
+        data = {'image': img_str}
+        response = requests.post('https://api.imgur.com/3/image', headers=headers, data=data)
+        response.raise_for_status()  # Lanza una excepción para códigos de error HTTP
+        return response.json()['data']['link']
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error al subir la imagen a Imgur: {e}")
+        return None
+    except KeyError:
+        st.error("Error al procesar la respuesta de Imgur.")
         return None
 
 # Configuración de la página
@@ -164,7 +168,7 @@ else:
             mensaje = st.text_area("Escribe tu mensaje")
             if st.button("Enviar mensaje"):
                 enviar_mensaje(st.session_state.correo, st.session_state.correo_vendedor, st.session_state.producto_seleccionado, mensaje)
-                st.success("Mensaje enviado con éxito")
+                st.success("Respuesta enviada con éxito")
                 st.session_state.producto_seleccionado = None
                 st.session_state.vendedor_seleccionado = None
                 st.session_state.correo_vendedor = None
@@ -187,13 +191,11 @@ else:
 
         if st.button("Publicar producto"):
             if foto is not None:
-                # Configura tus credenciales de AWS desde los secrets de Streamlit
-                AWS_ACCESS_KEY_ID = st.secrets["aws_access_key_id"]
-                AWS_SECRET_ACCESS_KEY = st.secrets["aws_secret_access_key"]
-                S3_BUCKET_NAME = st.secrets["s3_bucket_name"]
+                # Configura tu Client ID de Imgur desde los secrets de Streamlit
+                IMGUR_CLIENT_ID = st.secrets["imgur_client_id"]
 
-                # Subir la imagen a S3
-                foto_url = upload_to_s3(foto, S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+                # Subir la imagen a Imgur
+                foto_url = upload_to_imgur(foto, IMGUR_CLIENT_ID)
 
                 if foto_url:
                     añadir_producto(st.session_state.usuario, st.session_state.correo, producto, descripcion, foto_url, precio)
