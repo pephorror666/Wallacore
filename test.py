@@ -7,7 +7,6 @@ from io import BytesIO
 import pyperclip
 from datetime import datetime
 import os
-import json
 import base64
 
 # Función para verificar las credenciales del usuario
@@ -19,7 +18,10 @@ def verificar_credenciales(usuario, password):
 
 # Función para cargar el catálogo de productos
 def cargar_catalogo():
-    return pd.read_csv('catalogo.csv', encoding='utf-8')
+    try:
+        return pd.read_csv('catalogo.csv', encoding='utf-8')
+    except FileNotFoundError:
+        return pd.DataFrame(columns=['Vendedor', 'Correo Vendedor', 'Producto', 'Descripción', 'Foto', 'Precio'])
 
 # Función para redimensionar la imagen
 def redimensionar_imagen(url):
@@ -115,15 +117,16 @@ def upload_to_imgur(image_file, client_id):
         data = {'image': img_str}
         response = requests.post('https://api.imgur.com/3/image', headers=headers, data=data)
         response.raise_for_status()  # Lanza una excepción para códigos de error HTTP
-        st.write(f"Imgur API Response: {response.json()}")  # Imprime la respuesta completa
-        return response.json()['data']['link']
+        result = response.json()
+        return result['data']['link']
     except requests.exceptions.RequestException as e:
         st.error(f"Error al subir la imagen a Imgur: {e}")
-        st.error(f"Request Exception: {e}")  # Imprime detalles de la excepción
         return None
-    except KeyError as e:
-        st.error(f"Error al procesar la respuesta de Imgur: {e}")
-        st.error(f"Response: {response.text}")  # Imprime el texto de la respuesta
+    except KeyError:
+        st.error("Error al procesar la respuesta de Imgur.")
+        return None
+    except Exception as e:
+        st.error(f"Error inesperado: {e}")
         return None
 
 # Configuración de la página
@@ -189,25 +192,29 @@ else:
         st.header("Poner producto a la venta")
         producto = st.text_input("Nombre del producto")
         descripcion = st.text_area("Descripción")
-        foto = st.file_uploader("Subir foto del producto", type=["png", "jpg", "jpeg"])
+        
+        # Widget para subir la imagen
+        imagen = st.file_uploader("Subir foto del producto", type=["png", "jpg", "jpeg"])
+
+        # Subir a Imgur si se ha subido una imagen
+        foto = None  # Inicializar foto
+        if imagen is not None:
+            client_id = st.secrets["imgur_client_id"]["client_id"]
+            foto = upload_to_imgur(imagen, client_id)
+            if foto:
+                st.success("Imagen subida a Imgur con éxito!")
+            else:
+                st.error("Error al subir la imagen a Imgur.")
+                foto = ""  # Asignar una cadena vacía en caso de error
+        else:
+            foto = st.text_input("Si no subes imagen, introduce aquí la URL")
+
         precio = st.number_input("Precio (€)", min_value=0.0, step=0.01)
 
         if st.button("Publicar producto"):
-            if foto is not None:
-                # Configura tu Client ID de Imgur desde los secrets de Streamlit
-                IMGUR_CLIENT_ID = st.secrets["imgur_client_id"]
-
-                # Subir la imagen a Imgur
-                foto_url = upload_to_imgur(foto, IMGUR_CLIENT_ID)
-
-                if foto_url:
-                    añadir_producto(st.session_state.usuario, st.session_state.correo, producto, descripcion, foto_url, precio)
-                    st.success("Producto añadido con éxito")
-                    st.rerun()
-                else:
-                    st.error("Hubo un error al subir la imagen. Inténtalo de nuevo.")
-            else:
-                st.error("Por favor, sube una foto del producto.")
+            añadir_producto(st.session_state.usuario, st.session_state.correo, producto, descripcion, foto, precio)
+            st.success("Producto añadido con éxito")
+            st.rerun()
 
     elif menu.startswith("Mis mensajes"):
         st.header("Mis mensajes")
