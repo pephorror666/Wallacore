@@ -7,11 +7,24 @@ from io import BytesIO
 import pyperclip
 from datetime import datetime
 import os
+import json
 
+from dotenv import load_dotenv
+load_dotenv()
+
+# Obtener la cadena JSON de la variable de entorno
+usuarios_json = os.getenv("USUARIOS")
+
+# Convertir la cadena JSON a un diccionario de Python
+if usuarios_json:
+    usuarios = json.loads(usuarios_json)
+else:
+    usuarios = {}  # O manejar el error apropiadamente
+
+# Función para verificar las credenciales del usuario
 def verificar_credenciales(usuario, password):
-    if usuario in st.secrets:
-        if st.secrets[usuario]["password"] == password:
-            return True, st.secrets[usuario]["correo"]
+    if usuario in usuarios and usuarios[usuario]["password"] == password:
+        return True, usuarios[usuario]["correo"]
     return False, None
 
 # Función para cargar el catálogo de productos
