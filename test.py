@@ -9,8 +9,7 @@ from datetime import datetime
 import os
 from nylas import Client
 from nylas.models.drafts import CreateDraftRequest
-from nylas.models.messages import SendMessageRequest
-
+#from nylas.models.messages import SendMessageRequest #Quitado ya que SendMessageRequest no se usa directamente
 
 def verificar_credenciales(usuario, password):
     if usuario in st.secrets:
@@ -18,11 +17,9 @@ def verificar_credenciales(usuario, password):
             return True, st.secrets[usuario]["correo"]
     return False, None
 
-
 # Función para cargar el catálogo de productos
 def cargar_catalogo():
     return pd.read_csv('catalogo.csv', encoding='utf-8')
-
 
 # Función para redimensionar la imagen
 def redimensionar_imagen(url):
@@ -33,7 +30,6 @@ def redimensionar_imagen(url):
         return img
     except:
         return None
-
 
 # Función para mostrar la lista de productos
 def mostrar_productos(df, titulo, es_mis_productos=False):
@@ -47,7 +43,7 @@ def mostrar_productos(df, titulo, es_mis_productos=False):
                 st.image(img, caption=row['Producto'])
             else:
                 st.write("No se pudo cargar la imagen")
-
+            
             if not es_mis_productos:
                 col1, col2 = st.columns(2)
                 if col1.button(f"Copiar correo del vendedor {index}"):
@@ -57,14 +53,13 @@ def mostrar_productos(df, titulo, es_mis_productos=False):
                     st.session_state.producto_seleccionado = row['Producto']
                     st.session_state.vendedor_seleccionado = row['Vendedor']
                     st.session_state.correo_vendedor = row['Correo Vendedor']
-                    # st.experimental_rerun()
+                    #st.experimental_rerun()
                     st.rerun()
             else:
                 if st.button(f"Eliminar producto {index}"):
                     eliminar_producto(index)
-                    # st.experimental_rerun()
+                    #st.experimental_rerun()
                     st.rerun()
-
 
 # Función para añadir un nuevo producto
 def añadir_producto(vendedor, correo, producto, descripcion, foto, precio):
@@ -72,13 +67,11 @@ def añadir_producto(vendedor, correo, producto, descripcion, foto, precio):
         writer = csv.writer(file)
         writer.writerow([vendedor, correo, producto, descripcion, foto, precio])
 
-
 # Función para eliminar un producto
 def eliminar_producto(index):
     df = cargar_catalogo()
     df = df.drop(index)
     df.to_csv('catalogo.csv', index=False, encoding='utf-8')
-
 
 def enviar_correo(destinatario, asunto, cuerpo):
     # Credenciales de Nylas
@@ -103,17 +96,16 @@ def enviar_correo(destinatario, asunto, cuerpo):
         )
 
         # Enviar el mensaje utilizando la API de Nylas
-        send_message_request = SendMessageRequest(
-            draft=create_request
-        )
+        #send_message_request = SendMessageRequest(  #Eliminado ya que no se usa esta clase
+        #    draft=create_request
+        #)
 
-        nylas_client.messages.send(send_message_request)
+        nylas_client.drafts.create(create_request).send() #Envia directamente el borrador
 
         st.success(f"Correo electrónico enviado a {destinatario} a través de Nylas")
 
     except Exception as e:
         st.error(f"Error al enviar el correo electrónico con Nylas: {e}")
-
 
 # Función para enviar un mensaje
 def enviar_mensaje(remitente, destinatario, producto, mensaje):
@@ -121,7 +113,7 @@ def enviar_mensaje(remitente, destinatario, producto, mensaje):
         with open('mensajes.csv', 'w', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
             writer.writerow(['fecha', 'remitente', 'destinatario', 'producto', 'mensaje'])
-
+    
     with open('mensajes.csv', 'a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M"), remitente, destinatario, producto, mensaje])
@@ -130,7 +122,6 @@ def enviar_mensaje(remitente, destinatario, producto, mensaje):
     asunto = f"Nuevo mensaje sobre {producto} en Wallacore"
     cuerpo = f"Hola,\n\nHas recibido un nuevo mensaje de {remitente} sobre el producto {producto}:\n\n{mensaje}\n\nInicia sesión en Wallacore para responder."
     enviar_correo(destinatario, asunto, cuerpo)
-
 
 # Función para cargar los mensajes de un usuario
 def cargar_mensajes(usuario):
@@ -146,19 +137,16 @@ def cargar_mensajes(usuario):
     mensajes.sort(key=lambda x: datetime.strptime(x[0], "%Y-%m-%d %H:%M"), reverse=True)
     return mensajes
 
-
 # Función para eliminar un mensaje
 def eliminar_mensaje(index):
     df = pd.read_csv('mensajes.csv')
     df = df.drop(index)
     df.to_csv('mensajes.csv', index=False, encoding='utf-8')
 
-
 # Función para contar mensajes no leídos
 def contar_mensajes_no_leidos(usuario):
     mensajes = cargar_mensajes(usuario)
     return len([m for m in mensajes if m[2] == usuario])
-
 
 # Configuración de la página
 st.set_page_config(page_title="Wallacore", layout="wide")
@@ -184,7 +172,7 @@ if not st.session_state.logged_in:
             st.session_state.usuario = usuario
             st.session_state.correo = correo
             st.success("Inicio de sesión exitoso")
-            # st.experimental_rerun()
+            #st.experimental_rerun()
             st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
@@ -194,9 +182,9 @@ else:
     st.sidebar.title(f"Bienvenido, {st.session_state.usuario}")
     mensajes_no_leidos = contar_mensajes_no_leidos(st.session_state.correo)
     menu = st.sidebar.radio("Menú", [
-        "Lista de productos",
-        "Mis productos",
-        "Poner producto a la venta",
+        "Lista de productos", 
+        "Mis productos", 
+        "Poner producto a la venta", 
         f"Mis mensajes ({mensajes_no_leidos} nuevos)" if mensajes_no_leidos > 0 else "Mis mensajes"
     ])
 
@@ -210,7 +198,7 @@ else:
                 st.session_state.producto_seleccionado = None
                 st.session_state.vendedor_seleccionado = None
                 st.session_state.correo_vendedor = None
-                # st.experimental_rerun()
+                #st.experimental_rerun()
                 st.rerun()
         else:
             df = cargar_catalogo()
@@ -240,39 +228,38 @@ else:
             for index, mensaje in enumerate(mensajes):
                 es_enviado = mensaje[1] == st.session_state.correo
                 tipo_mensaje = "Enviado" if es_enviado else "Recibido"
-
+                
                 titulo = f"{tipo_mensaje}: Mensaje sobre {mensaje[3]} {'para' if es_enviado else 'de'} {mensaje[2] if es_enviado else mensaje[1]}"
-
+                
                 with st.expander(titulo):
                     st.write(f"Fecha: {mensaje[0]}")
                     st.write(f"{'Para' if es_enviado else 'De'}: {mensaje[2] if es_enviado else mensaje[1]}")
                     st.write(f"Producto: {mensaje[3]}")
                     st.write(f"Mensaje: {mensaje[4]}")
-
+                    
                     if not es_enviado:  # Solo mostrar opciones para mensajes recibidos
                         col1, col2 = st.columns(2)
                         if col1.button(f"Eliminar mensaje {index}"):
                             eliminar_mensaje(index)
-                            # st.experimental_rerun()
+                            #st.experimental_rerun()
                             st.rerun()
                         if col2.button(f"Responder mensaje {index}"):
                             st.session_state.respondiendo_mensaje = index
                             st.session_state.destinatario_respuesta = mensaje[1]
                             st.session_state.producto_respuesta = mensaje[3]
-                            # st.experimental_rerun()
+                            #st.experimental_rerun()
                             st.rerun()
 
             if hasattr(st.session_state, 'respondiendo_mensaje'):
                 st.subheader(f"Responder al mensaje sobre: {st.session_state.producto_respuesta}")
                 respuesta = st.text_area("Escribe tu respuesta")
                 if st.button("Enviar respuesta"):
-                    enviar_mensaje(st.session_state.correo, st.session_state.destinatario_respuesta,
-                                  st.session_state.producto_respuesta, respuesta)
+                    enviar_mensaje(st.session_state.correo, st.session_state.destinatario_respuesta, st.session_state.producto_respuesta, respuesta)
                     st.success("Respuesta enviada con éxito")
                     del st.session_state.respondiendo_mensaje
                     del st.session_state.destinatario_respuesta
                     del st.session_state.producto_respuesta
-                    # st.experimental_rerun()
+                    #st.experimental_rerun()
                     st.rerun()
 
     if st.sidebar.button("Cerrar sesión"):
@@ -282,5 +269,5 @@ else:
         st.session_state.producto_seleccionado = None
         st.session_state.vendedor_seleccionado = None
         st.session_state.correo_vendedor = None
-        # st.experimental_rerun()
+        #st.experimental_rerun()
         st.rerun()
