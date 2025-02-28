@@ -50,11 +50,13 @@ def mostrar_productos(df, titulo, es_mis_productos=False):
                     st.session_state.producto_seleccionado = row['Producto']
                     st.session_state.vendedor_seleccionado = row['Vendedor']
                     st.session_state.correo_vendedor = row['Correo Vendedor']
-                    st.experimental_rerun()
+                    #st.experimental_rerun()
+                    st.rerun()
             else:
                 if st.button(f"Eliminar producto {index}"):
                     eliminar_producto(index)
-                    st.experimental_rerun()
+                    #st.experimental_rerun()
+                    st.rerun()
 
 # Función para añadir un nuevo producto
 def añadir_producto(vendedor, correo, producto, descripcion, foto, precio):
@@ -128,7 +130,8 @@ if not st.session_state.logged_in:
             st.session_state.usuario = usuario
             st.session_state.correo = correo
             st.success("Inicio de sesión exitoso")
-            st.experimental_rerun()
+            #st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
 
@@ -153,7 +156,8 @@ else:
                 st.session_state.producto_seleccionado = None
                 st.session_state.vendedor_seleccionado = None
                 st.session_state.correo_vendedor = None
-                st.experimental_rerun()
+                #st.experimental_rerun()
+                st.rerun()
         else:
             df = cargar_catalogo()
             mostrar_productos(df, "Productos disponibles")
@@ -195,12 +199,14 @@ else:
                         col1, col2 = st.columns(2)
                         if col1.button(f"Eliminar mensaje {index}"):
                             eliminar_mensaje(index)
-                            st.experimental_rerun()
+                            #st.experimental_rerun()
+                            st.rerun()
                         if col2.button(f"Responder mensaje {index}"):
                             st.session_state.respondiendo_mensaje = index
                             st.session_state.destinatario_respuesta = mensaje[1]
                             st.session_state.producto_respuesta = mensaje[3]
-                            st.experimental_rerun()
+                            #st.experimental_rerun()
+                            st.rerun()
 
         if hasattr(st.session_state, 'respondiendo_mensaje'):
             st.subheader(f"Responder al mensaje sobre: {st.session_state.producto_respuesta}")
@@ -211,7 +217,8 @@ else:
                 del st.session_state.respondiendo_mensaje
                 del st.session_state.destinatario_respuesta
                 del st.session_state.producto_respuesta
-                st.experimental_rerun()
+                #st.experimental_rerun()
+                st.rerun()
 
     if st.sidebar.button("Cerrar sesión"):
         st.session_state.logged_in = False
@@ -220,4 +227,5 @@ else:
         st.session_state.producto_seleccionado = None
         st.session_state.vendedor_seleccionado = None
         st.session_state.correo_vendedor = None
-        st.experimental_rerun()
+        #st.experimental_rerun()
+        st.rerun()
