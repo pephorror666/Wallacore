@@ -115,12 +115,15 @@ def upload_to_imgur(image_file, client_id):
         data = {'image': img_str}
         response = requests.post('https://api.imgur.com/3/image', headers=headers, data=data)
         response.raise_for_status()  # Lanza una excepción para códigos de error HTTP
+        st.write(f"Imgur API Response: {response.json()}")  # Imprime la respuesta completa
         return response.json()['data']['link']
     except requests.exceptions.RequestException as e:
         st.error(f"Error al subir la imagen a Imgur: {e}")
+        st.error(f"Request Exception: {e}")  # Imprime detalles de la excepción
         return None
-    except KeyError:
-        st.error("Error al procesar la respuesta de Imgur.")
+    except KeyError as e:
+        st.error(f"Error al procesar la respuesta de Imgur: {e}")
+        st.error(f"Response: {response.text}")  # Imprime el texto de la respuesta
         return None
 
 # Configuración de la página
